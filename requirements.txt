@@ -3,7 +3,8 @@ flask_sqlalchemy
 flask_bootstrap
 pymupdf
 openai
-markdown-it-py[gfm]   # enables GitHub-Flavored Markdown (tables, checklists)
+markdown-it-py
+mdit-py-plugins
 weasyprint
 python-dotenv
 gunicorn

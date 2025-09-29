@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 import fitz  # PyMuPDF
 from openai import OpenAI
 import markdown_it
-from markdown_it.extensions.gfm import gfm_plugin
+from mdit_py_plugins.gfm import gfm_plugin
 from weasyprint import HTML
 
 # --- Setup ---

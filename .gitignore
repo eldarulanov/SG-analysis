@@ -1,0 +1,14 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Virtual environments
+venv/
+.env
+
+# Uploads & outputs (don’t push user data or generated PDFs)
+uploads/
+outputs/
+
+# OS files
+.DS_Store

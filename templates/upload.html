@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Venture Memo Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 40px;
+            background-color: #f8f9fa;
+        }
+        h1 { color: #333; }
+        form {
+            background: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            width: 400px;
+        }
+        input, button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 12px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover { background-color: #0056b3; }
+    </style>
+</head>
+<body>
+    <h1>Upload Pitch Deck</h1>
+    <form method="post" enctype="multipart/form-data">
+        <label for="startup_name">Startup Name</label>
+        <input type="text" id="startup_name" name="startup_name" required>
+
+        <label for="industry">Industry</label>
+        <input type="text" id="industry" name="industry" required>
+
+        <label for="file">Pitch Deck (PDF)</label>
+        <input type="file" id="file" name="file" accept=".pdf" required>
+
+        <button type="submit">Analyze & Generate Memo</button>
+    </form>
+</body>
+</html>

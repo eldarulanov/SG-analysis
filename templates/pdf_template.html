@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>{{ startup }} Investment Memo</title>
+    <style>
+      body { font-family: Arial, sans-serif; margin: 30px; line-height: 1.6; }
+      h1, h2 { color: #333; }
+      .memo-section { margin-bottom: 25px; }
+    </style>
+  </head>
+  <body>
+    <h1>{{ startup }} – Investment Memo</h1>
+    <div class="memo-content">
+      {{ memo_html|safe }}
+    </div>
+  </body>
+</html>

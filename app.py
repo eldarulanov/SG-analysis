@@ -1,4 +1,6 @@
 import os
+import re
+import json
 from flask import Flask, render_template, request, redirect, url_for, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.utils import secure_filename
@@ -6,7 +8,6 @@ from dotenv import load_dotenv
 import fitz  # PyMuPDF
 from openai import OpenAI
 import markdown_it
-from mdit_py_plugins.gfm import gfm_plugin
 from weasyprint import HTML
 
 # --- Setup ---
@@ -62,14 +63,25 @@ def extract_text(file_path):
 # --- Extract Startup Info ---
 def extract_startup_info(deck_text):
     prompt = f"""
-    You are an assistant that extracts key startup information from pitch decks.
+    You are an expert VC analyst. Your task is to extract the startup **Name** and map the **Industry** into a clean, standardized category.
 
     Pitch Deck Extract:
-    {deck_text[:3000]}  # limited to avoid token overflow
+    {deck_text[:3000]}
 
-    Task:
-    - Extract the startup's **Name** and **Industry**.
-    - Reply ONLY in JSON with keys: name, industry.
+    Rules:
+    - Respond ONLY in valid JSON (no extra text).
+    - Keys: "name", "industry".
+    - "name" = the company/startup name (short, without Inc, Ltd, etc. if possible).
+    - "industry" = choose the best fit from: 
+      ["Fintech", "HealthTech", "Biotech", "SaaS", "AI/ML", "DeepTech", "E-commerce", 
+       "ClimateTech", "Clean Energy", "Mobility", "Logistics", "EdTech", "Cybersecurity", 
+       "Gaming", "Agritech", "PropTech", "Other"].
+
+    Example output:
+    {{
+      "name": "Acme AI",
+      "industry": "AI/ML"
+    }}
     """
 
     response = client.chat.completions.create(
@@ -78,14 +90,24 @@ def extract_startup_info(deck_text):
         temperature=0
     )
 
+    content = response.choices[0].message.content.strip()
+
     try:
-        content = response.choices[0].message.content.strip()
-        import json
-        data = json.loads(content)
-        return data.get("name", ""), data.get("industry", "")
-    except Exception as e:
-        print("Extraction error:", e, "Response:", content)
-        return "", ""
+        import json, re
+        # Direct JSON parse
+        return json.loads(content).get("name", ""), json.loads(content).get("industry", "")
+    except:
+        # Fallback: extract JSON with regex
+        match = re.search(r"\{.*\}", content, re.DOTALL)
+        if match:
+            try:
+                data = json.loads(match.group(0))
+                return data.get("name", ""), data.get("industry", "")
+            except:
+                pass
+    print("⚠️ Extraction failed, raw response:", content)
+    return "", ""
+
 
 # --- OpenAI Call for Memo ---
 def generate_memo(startup_name, industry, deck_text):
@@ -216,7 +238,7 @@ def generate_memo_for_startup(startup_id):
     memo_text = generate_memo(startup.name, startup.industry, deck_text)
 
     # Render Markdown with GitHub-flavored tables
-    md = markdown_it.MarkdownIt().use(gfm_plugin)
+    md = markdown_it.MarkdownIt()
     html_memo = md.render(memo_text)
 
     # Save as PDF

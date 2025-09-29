@@ -245,6 +245,6 @@ def download_file(filename):
 # --- Run ---
 if __name__ == "__main__":
     with app.app_context():
-        db.drop_all()
-        db.create_all()
+        db.create_all()  # only create tables if they don’t exist
     app.run(debug=True)
+

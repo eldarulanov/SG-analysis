@@ -1,67 +1,42 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Startup Dashboard</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background: #f8f9fa; }
-        h1 { color: #333; margin-bottom: 20px; }
-        table {
-            width: 100%; border-collapse: collapse; background: #fff;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-        }
-        th, td {
-            padding: 10px; border: 1px solid #ddd; text-align: left;
-        }
-        th { background-color: #f2f2f2; }
-        a.btn {
-            display: inline-block; padding: 6px 12px; border-radius: 5px;
-            text-decoration: none; font-size: 14px;
-        }
-        .view-btn { background: #007bff; color: white; }
-        .view-btn:hover { background: #0056b3; }
-        .memo-btn { background: #28a745; color: white; }
-        .memo-btn:hover { background: #1e7e34; }
-        .upload-btn {
-            display: inline-block; margin-bottom: 20px; padding: 10px 15px;
-            background: #007bff; color: white; text-decoration: none;
-            border-radius: 5px;
-        }
-        .upload-btn:hover { background: #0056b3; }
-    </style>
-</head>
-<body>
-    <h1>Startup Dashboard</h1>
-    <a href="{{ url_for('upload_pitchdeck') }}" class="upload-btn">+ Upload New Pitch Deck</a>
+{% extends "base.html" %}
+{% block title %}Startup Dashboard{% endblock %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2 class="fw-bold">Startup Dashboard</h2>
+  <a href="{{ url_for('upload_pitchdeck') }}" class="btn btn-primary">+ Upload New Pitch Deck</a>
+</div>
 
-    <table>
-        <thead>
-            <tr>
-                <th>Name</th>
-                <th>Industry</th>
-                <th>Assigned GP</th>
-                <th>Status</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for startup in startups %}
-            <tr>
-                <td>{{ startup.name }}</td>
-                <td>{{ startup.industry }}</td>
-                <td>{{ startup.assigned_gp }}</td>
-                <td>{{ startup.status }}</td>
-                <td>
-                    <a href="{{ url_for('view_startup', startup_id=startup.id) }}" class="btn view-btn">View</a>
-                    {% if startup.memo_pdf %}
-                        <a href="{{ url_for('download_file', filename=startup.memo_pdf) }}" class="btn memo-btn">Download Memo</a>
-                    {% else %}
-                        <a href="{{ url_for('generate_memo_for_startup', startup_id=startup.id) }}" class="btn memo-btn">Generate Memo</a>
-                    {% endif %}
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
+<div class="card shadow-sm">
+  <div class="card-body p-0">
+    <table class="table table-striped mb-0">
+      <thead class="table-dark">
+        <tr>
+          <th>Name</th>
+          <th>Industry</th>
+          <th>Assigned GP</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for startup in startups %}
+        <tr>
+          <td>{{ startup.name }}</td>
+          <td>{{ startup.industry }}</td>
+          <td>{{ startup.assigned_gp }}</td>
+          <td>{{ startup.status }}</td>
+          <td>
+            <a href="{{ url_for('view_startup', startup_id=startup.id) }}" class="btn btn-sm btn-info text-white">View</a>
+            {% if startup.memo_pdf %}
+              <a href="{{ url_for('download_file', filename=startup.memo_pdf) }}" class="btn btn-sm btn-success">Download Memo</a>
+            {% else %}
+              <a href="{{ url_for('generate_memo_for_startup', startup_id=startup.id) }}" class="btn btn-sm btn-warning">Generate Memo</a>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
     </table>
-</body>
-</html>
+  </div>
+</div>
+{% endblock %}

@@ -1,55 +1,38 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>Confirm Startup Info</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background: #f8f9fa; }
-        h1 { color: #333; }
-        form {
-            background: #fff; padding: 20px; border-radius: 8px;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.1); width: 400px;
-        }
-        input, button {
-            width: 100%; padding: 10px; margin-top: 12px;
-            border: 1px solid #ccc; border-radius: 5px;
-        }
-        button {
-            background-color: #28a745; color: white; border: none; cursor: pointer;
-        }
-        button:hover { background-color: #1e7e34; }
-        .secondary-btn {
-            background-color: #007bff; margin-top: 10px;
-        }
-        .secondary-btn:hover { background-color: #0056b3; }
-    </style>
-    <script>
-        function enableEditing() {
-            document.getElementById("name").removeAttribute("readonly");
-            document.getElementById("industry").removeAttribute("readonly");
-        }
-    </script>
-</head>
-<body>
-    <h1>Confirm Startup Info</h1>
+{% extends "base.html" %}
+{% block title %}Confirm Startup Info{% endblock %}
+{% block content %}
+<div class="card shadow-sm w-50 mx-auto">
+  <div class="card-body">
+    <h3 class="mb-4 text-center fw-bold">Confirm Startup Info</h3>
     <form method="post" action="{{ url_for('confirm_startup') }}">
-        <input type="hidden" name="filename" value="{{ filename }}">
+      <input type="hidden" name="filename" value="{{ filename }}">
 
-        <label for="name">Startup Name</label>
-        <input type="text" id="name" name="name" value="{{ name }}" readonly required>
+      <div class="mb-3">
+        <label class="form-label">Startup Name</label>
+        <input type="text" id="name" name="name" value="{{ name }}" class="form-control" readonly required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Industry</label>
+        <input type="text" id="industry" name="industry" value="{{ industry }}" class="form-control" readonly required>
+      </div>
+      <button type="button" class="btn btn-sm btn-info mb-3" onclick="document.getElementById('name').removeAttribute('readonly');document.getElementById('industry').removeAttribute('readonly');">
+        Edit Fields
+      </button>
 
-        <label for="industry">Industry</label>
-        <input type="text" id="industry" name="industry" value="{{ industry }}" readonly required>
+      <div class="mb-3">
+        <label class="form-label">Assigned GP</label>
+        <input type="text" name="assigned_gp" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Contact Person</label>
+        <input type="text" name="contact_person" class="form-control" required>
+      </div>
 
-        <button type="button" class="secondary-btn" onclick="enableEditing()">Edit Fields</button>
-
-        <label for="assigned_gp">Assigned GP</label>
-        <input type="text" id="assigned_gp" name="assigned_gp" required>
-
-        <label for="contact_person">Contact Person</label>
-        <input type="text" id="contact_person" name="contact_person" required>
-
-        <button type="submit">Save Startup</button>
+      <div class="text-center">
+        <button type="submit" class="btn btn-success">Save Startup</button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+      </div>
     </form>
-</body>
-</html>
+  </div>
+</div>
+{% endblock %}

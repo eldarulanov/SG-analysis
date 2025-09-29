@@ -4,7 +4,6 @@ flask_bootstrap
 pymupdf
 openai
 markdown-it-py
-mdx_gfm
 weasyprint
 python-dotenv
 gunicorn

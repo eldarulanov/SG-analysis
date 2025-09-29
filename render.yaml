@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: sg-analysis
+    env: python
+    plan: free
+    buildCommand: |
+      apt-get update && apt-get install -y libpango-1.0-0 libgdk-pixbuf2.0-0 libffi-dev libcairo2
+      pip install -r requirements.txt
+    startCommand: gunicorn app:app

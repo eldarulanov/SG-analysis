@@ -1,25 +1,69 @@
-{% extends "base.html" %}
-{% block title %}{{ startup.name }}{% endblock %}
-{% block content %}
-<div class="card shadow-sm w-75 mx-auto">
-  <div class="card-body">
-    <h3 class="fw-bold mb-4">{{ startup.name }}</h3>
-    <p><strong>Industry:</strong> {{ startup.industry }}</p>
-    <p><strong>Stage:</strong> {{ startup.stage }}</p>
-    <p><strong>Assigned GP:</strong> {{ startup.assigned_gp }}</p>
-    <p><strong>Contact:</strong> {{ startup.contact_person }}</p>
-    <p><strong>Status:</strong> <span class="badge bg-info">{{ startup.status }}</span></p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ startup.name }} – Details</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 40px; background: #f8f9fa; }
+        h1 { color: #333; margin-bottom: 20px; }
+        .card {
+            background: #fff; padding: 20px; border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1); margin-bottom: 20px;
+        }
+        .field { margin-bottom: 12px; }
+        .label { font-weight: bold; color: #444; display: block; margin-bottom: 4px; }
+        .actions a {
+            display: inline-block; padding: 10px 15px; margin-right: 10px;
+            border-radius: 5px; text-decoration: none; font-size: 14px;
+        }
+        .memo-btn { background: #28a745; color: white; }
+        .memo-btn:hover { background: #1e7e34; }
+        .back-btn { background: #007bff; color: white; }
+        .back-btn:hover { background: #0056b3; }
+        .memo-container {
+            background: #fff; padding: 20px; border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1); margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>{{ startup.name }}</h1>
 
-    <div class="mt-4 d-flex justify-content-between">
-      <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">← Back</a>
-      {% if startup.deck_file %}
-      <a href="{{ url_for('generate_memo_for_startup', startup_id=startup.id) }}" class="btn btn-primary">
-        Generate Memo
-      </a>
-      {% else %}
-      <span class="text-muted">No deck uploaded</span>
-      {% endif %}
+    <div class="card">
+        <div class="field">
+            <span class="label">Industry:</span>
+            <span>{{ startup.industry }}</span>
+        </div>
+        <div class="field">
+            <span class="label">Assigned GP:</span>
+            <span>{{ startup.assigned_gp }}</span>
+        </div>
+        <div class="field">
+            <span class="label">Contact Person:</span>
+            <span>{{ startup.contact_person }}</span>
+        </div>
+        <div class="field">
+            <span class="label">Status:</span>
+            <span>{{ startup.status }}</span>
+        </div>
     </div>
-  </div>
-</div>
-{% endblock %}
+
+    <div class="actions">
+        {% if startup.memo_pdf %}
+            <a href="{{ url_for('download_file', filename=startup.memo_pdf) }}" class="memo-btn">Download Memo</a>
+        {% else %}
+            <a href="{{ url_for('generate_memo_for_startup', startup_id=startup.id) }}" class="memo-btn">Generate Memo</a>
+        {% endif %}
+        <a href="{{ url_for('dashboard') }}" class="back-btn">← Back to Dashboard</a>
+    </div>
+
+    {% if startup.gp_notes %}
+    <div class="memo-container">
+        <h2>Investment Memo</h2>
+        <div>
+            {{ startup.gp_notes | markdown }}
+        </div>
+    </div>
+    {% endif %}
+</body>
+</html>

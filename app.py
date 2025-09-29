@@ -5,7 +5,8 @@ from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 import fitz  # PyMuPDF
 from openai import OpenAI
-import markdown
+import markdown_it
+from markdown_it.extensions.gfm import gfm_plugin
 from weasyprint import HTML
 
 # --- Setup ---
@@ -21,7 +22,6 @@ os.makedirs(app.config["OUTPUT_FOLDER"], exist_ok=True)
 # Database setup
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///startups.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-print("Using DB at:", app.config["SQLALCHEMY_DATABASE_URI"])
 db = SQLAlchemy(app)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -34,7 +34,7 @@ class Startup(db.Model):
     stage = db.Column(db.String(50))
     assigned_gp = db.Column(db.String(100))
     contact_person = db.Column(db.String(100))
-    founders = db.Column(db.Text)  # simple string for now
+    founders = db.Column(db.Text)
     arr = db.Column(db.Float)
     funding = db.Column(db.Float)
     valuation = db.Column(db.Float)
@@ -59,8 +59,35 @@ def extract_text(file_path):
             text += page.get_text("text")
     return text.strip()
 
-# --- OpenAI Call ---
-# --- OpenAI Call ---
+# --- Extract Startup Info ---
+def extract_startup_info(deck_text):
+    prompt = f"""
+    You are an assistant that extracts key startup information from pitch decks.
+
+    Pitch Deck Extract:
+    {deck_text[:3000]}  # limited to avoid token overflow
+
+    Task:
+    - Extract the startup's **Name** and **Industry**.
+    - Reply ONLY in JSON with keys: name, industry.
+    """
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0
+    )
+
+    try:
+        content = response.choices[0].message.content.strip()
+        import json
+        data = json.loads(content)
+        return data.get("name", ""), data.get("industry", "")
+    except Exception as e:
+        print("Extraction error:", e, "Response:", content)
+        return "", ""
+
+# --- OpenAI Call for Memo ---
 def generate_memo(startup_name, industry, deck_text):
     prompt = f"""
 You are an expert venture capital analyst preparing an investment committee (IC) style memo.
@@ -123,7 +150,6 @@ Formatting Rules:
 - Keep writing professional, fact-based, and concise, but rich with data.  
 - Always end each section with a short line of **Sources** (e.g. Sources: Crunchbase, Pitchbook 2024, Statista).  
 """
-
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
@@ -131,39 +157,48 @@ Formatting Rules:
     )
     return response.choices[0].message.content
 
-
-# --- ROUTES ---
-
+# --- Routes ---
 @app.route("/")
 def dashboard():
     startups = Startup.query.all()
     return render_template("dashboard.html", startups=startups)
 
-@app.route("/add", methods=["GET", "POST"])
-def add_startup():
+@app.route("/upload", methods=["GET", "POST"])
+def upload_pitchdeck():
     if request.method == "POST":
-        file = request.files.get("deck_file")
-        filename = None
-        if file and file.filename:
-            filename = secure_filename(file.filename)
-            filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
-            file.save(filepath)
+        file = request.files.get("file")
+        if not file or not file.filename.endswith(".pdf"):
+            return "Please upload a valid PDF", 400
 
-        new = Startup(
-            name=request.form["name"],
-            industry=request.form["industry"],
-            stage=request.form["stage"],
-            assigned_gp=request.form["assigned_gp"],
-            contact_person=request.form["contact_person"],
-            status="Submitted",
-            deck_file=filename  # store file name in DB
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], filename)
+        file.save(filepath)
+
+        deck_text = extract_text(filepath)
+        name, industry = extract_startup_info(deck_text)
+
+        return render_template(
+            "confirm_startup.html",
+            filename=filename,
+            name=name,
+            industry=industry
         )
-        db.session.add(new)
-        db.session.commit()
-        return redirect(url_for("dashboard"))
+    return render_template("upload.html")
 
-    return render_template("add_startup.html")
-
+@app.route("/confirm", methods=["POST"])
+def confirm_startup():
+    filename = request.form["filename"]
+    startup = Startup(
+        name=request.form["name"],
+        industry=request.form["industry"],
+        assigned_gp=request.form["assigned_gp"],
+        contact_person=request.form["contact_person"],
+        status="Submitted",
+        deck_file=filename
+    )
+    db.session.add(startup)
+    db.session.commit()
+    return redirect(url_for("dashboard"))
 
 @app.route("/startup/<int:startup_id>")
 def view_startup(startup_id):
@@ -180,17 +215,28 @@ def generate_memo_for_startup(startup_id):
     deck_text = extract_text(filepath)
     memo_text = generate_memo(startup.name, startup.industry, deck_text)
 
-    html_memo = markdown.markdown(memo_text)
+    # Render Markdown with GitHub-flavored tables
+    md = markdown_it.MarkdownIt().use(gfm_plugin)
+    html_memo = md.render(memo_text)
+
+    # Save as PDF
     output_filename = f"{startup.name}_memo.pdf"
     output_path = os.path.join(app.config["OUTPUT_FOLDER"], output_filename)
 
     html_content = render_template("pdf_template.html", memo_html=html_memo, startup=startup.name)
     HTML(string=html_content).write_pdf(output_path)
 
+    # Save memo + PDF path in DB
     startup.memo_pdf = output_filename
+    startup.gp_notes = memo_text  # store raw markdown
     db.session.commit()
 
-    return redirect(url_for("view_startup", startup_id=startup.id))
+    return render_template(
+        "result.html",
+        memo_html=html_memo,
+        download_link=url_for("download_file", filename=output_filename)
+    )
+
 
 @app.route("/outputs/<filename>")
 def download_file(filename):
@@ -199,9 +245,6 @@ def download_file(filename):
 # --- Run ---
 if __name__ == "__main__":
     with app.app_context():
-        db.drop_all()    # start fresh every time you run
+        db.drop_all()
         db.create_all()
-        from sqlalchemy import inspect
-        inspector = inspect(db.engine)
-        print("Tables in DB:", inspector.get_table_names())
     app.run(debug=True)

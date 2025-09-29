@@ -3,8 +3,8 @@ flask_sqlalchemy
 flask_bootstrap
 pymupdf
 openai
-markdown
+markdown-it-py
+mdx_gfm
 weasyprint
 python-dotenv
 gunicorn
-

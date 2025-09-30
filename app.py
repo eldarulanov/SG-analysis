@@ -327,13 +327,6 @@ if __name__ == "__main__":
     app.run(debug=True)
 
 
-
-# --- Routes ---
-@app.route("/")
-def dashboard():
-    startups = Startup.query.all()
-    return render_template("dashboard.html", startups=startups)
-
 @app.route("/upload", methods=["GET", "POST"])
 def upload_pitchdeck():
     if request.method == "POST":

@@ -93,53 +93,43 @@ def extract_startup_info(deck_text, file_name=""):
     except:
         return clean_filename, "Other"
 
-# --- Memo generation ---
-MEMO_SECTIONS = [
-    "Executive Summary",
-    "Industry Landscape",
-    "Pain Points",
-    "Competitive Landscape (Porter’s 5 Forces)",
-    "Comparator Table",
-    "White Space Opportunities",
-    "Benchmarks & Multiples",
-    "GTM Strategy",
-    "ROI Evidence",
-    "Regulatory Readiness",
-    "Exit Paths",
-    "Quantitative Scoring Matrix"
-]
-
-def generate_section(section_title, startup_name, industry, deck_text):
+# --- Single GPT Memo Generation ---
+def generate_memo(startup_name, industry, deck_text):
     prompt = f"""
-    You are a VC analyst. Write the section **{section_title}** of an investment memo.
+    You are an expert VC analyst. Write a structured investment committee memo.
 
     Startup: {startup_name}
     Industry: {industry}
-    Pitch Deck Extract (truncated): {deck_text[:2500]}
+    Pitch Deck (truncated): {deck_text[:2000]}
+
+    Sections to include:
+    - Executive Summary
+    - Industry Landscape
+    - Pain Points
+    - Competitive Landscape (Porter's 5 Forces)
+    - Comparator Table
+    - White Space Opportunities
+    - Benchmarks & Multiples
+    - GTM Strategy
+    - ROI Evidence
+    - Regulatory Readiness
+    - Exit Paths
+    - Quantitative Scoring Matrix
 
     Rules:
-    - Use professional, data-driven tone.
-    - Always format with Markdown (## headers, bullet points, tables where needed).
-    - If citing sources, add them at the end of the section under "Sources".
+    - Use Markdown headings (##).
+    - Keep concise but data-rich.
+    - Use bullet points & tables where useful.
+    - Always add "Sources:" at the end of each section.
     """
 
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
-        max_tokens=800
+        max_tokens=1800
     )
     return response.choices[0].message.content.strip()
-
-def generate_full_memo(startup_name, industry, deck_text):
-    memo_parts = []
-    for section in MEMO_SECTIONS:
-        try:
-            section_text = generate_section(section, startup_name, industry, deck_text)
-            memo_parts.append(f"## {section}\n\n{section_text}")
-        except Exception as e:
-            memo_parts.append(f"## {section}\n\nError: {e}")
-    return "\n\n".join(memo_parts)
 
 # --- Routes ---
 @app.route("/")
@@ -191,9 +181,9 @@ def generate_memo_for_startup(startup_id):
         return "No pitch deck uploaded", 400
 
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], startup.deck_file)
-    deck_text = extract_text(filepath)[:4000]  # limit input size
+    deck_text = extract_text(filepath)[:4000]  # truncate input
 
-    memo_text = generate_full_memo(startup.name, startup.industry, deck_text)
+    memo_text = generate_memo(startup.name, startup.industry, deck_text)
 
     # Save memo Markdown in DB
     startup.gp_notes = memo_text

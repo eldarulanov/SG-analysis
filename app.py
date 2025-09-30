@@ -60,28 +60,36 @@ def extract_text(file_path):
             text += page.get_text("text")
     return text.strip()
 
-# --- Extract Startup Info ---
-def extract_startup_info(deck_text):
-    prompt = f"""
-    You are an expert VC analyst. Your task is to extract the startup **Name** and map the **Industry** into a clean, standardized category.
+INDUSTRY_CATEGORIES = [
+    "MarTech", "E-commerce", "AdTech", "Space & Defense Tech", "VR/AR Tech", "FinTech",
+    "HealthTech", "EdTech", "CleanTech", "Mobility & Transportation", "Logistics & Supply Chain",
+    "Cybersecurity", "Blockchain", "SaaS", "Gaming & Entertainment", "Food and Agriculture Tech",
+    "Telecommunications", "Service Industry (Consulting / Legal / Accounting etc...)", 
+    "Data & Analytics", "Other"
+]
 
-    Pitch Deck Extract:
-    {deck_text[:3000]}
+def extract_startup_info(deck_text, file_name=""):
+    # Prioritize first page text
+    first_slide_text = deck_text.split("\n")[:40]  # first ~40 lines
+    first_slide_text = " ".join(first_slide_text)
+
+    # Clean file name for fallback
+    clean_filename = os.path.splitext(os.path.basename(file_name))[0].replace("_", " ")
+
+    prompt = f"""
+    You are a VC analyst. Identify:
+    1. The **startup name** (prefer first slide text; if unclear, fallback to file name: "{clean_filename}").
+    2. The **industry**. Choose exactly one from this list:
+    {INDUSTRY_CATEGORIES}
+
+    Text to analyze:
+    {first_slide_text[:2000]}
 
     Rules:
-    - Respond ONLY in valid JSON (no extra text).
+    - Respond ONLY in valid JSON (no commentary).
     - Keys: "name", "industry".
-    - "name" = the company/startup name (short, without Inc, Ltd, etc. if possible).
-    - "industry" = choose the best fit from: 
-      ["Fintech", "HealthTech", "Biotech", "SaaS", "AI/ML", "DeepTech", "E-commerce", 
-       "ClimateTech", "Clean Energy", "Mobility", "Logistics", "EdTech", "Cybersecurity", 
-       "Gaming", "Agritech", "PropTech", "Other"].
-
-    Example output:
-    {{
-      "name": "Acme AI",
-      "industry": "AI/ML"
-    }}
+    - Example:
+      {{"name": "Acme Robotics", "industry": "AI/ML"}}
     """
 
     response = client.chat.completions.create(
@@ -89,24 +97,16 @@ def extract_startup_info(deck_text):
         messages=[{"role": "user", "content": prompt}],
         temperature=0
     )
-
     content = response.choices[0].message.content.strip()
 
     try:
-        import json, re
-        # Direct JSON parse
-        return json.loads(content).get("name", ""), json.loads(content).get("industry", "")
+        data = json.loads(content)
+        name = data.get("name") or clean_filename
+        industry = data.get("industry") if data.get("industry") in INDUSTRY_CATEGORIES else "Other"
+        return name, industry
     except:
-        # Fallback: extract JSON with regex
-        match = re.search(r"\{.*\}", content, re.DOTALL)
-        if match:
-            try:
-                data = json.loads(match.group(0))
-                return data.get("name", ""), data.get("industry", "")
-            except:
-                pass
-    print("⚠️ Extraction failed, raw response:", content)
-    return "", ""
+        print("⚠️ Fallback, raw response:", content)
+        return clean_filename, "Other"
 
 
 # --- OpenAI Call for Memo ---

@@ -28,7 +28,7 @@
           <td>
             <a href="{{ url_for('view_startup', startup_id=startup.id) }}" class="btn btn-sm btn-info text-white">View</a>
             {% if startup.memo_pdf %}
-              <a href="{{ url_for('download_file', filename=startup.memo_pdf) }}" class="btn btn-sm btn-success">Download Memo</a>
+<a href="{{ url_for('download_memo', startup_id=startup.id) }}" class="btn btn-sm btn-success">Download Memo</a>
             {% else %}
               <a href="{{ url_for('generate_memo_for_startup', startup_id=startup.id) }}" class="btn btn-sm btn-warning">Generate Memo</a>
             {% endif %}

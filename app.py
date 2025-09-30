@@ -39,15 +39,7 @@ class Startup(db.Model):
     arr = db.Column(db.Float)
     funding = db.Column(db.Float)
     valuation = db.Column(db.Float)
-    gp_notes = db.Column(db.Text)
-    score_market = db.Column(db.Integer)
-    score_product = db.Column(db.Integer)
-    score_traction = db.Column(db.Integer)
-    score_team = db.Column(db.Integer)
-    score_competition = db.Column(db.Integer)
-    score_scalability = db.Column(db.Integer)
-    score_exit = db.Column(db.Integer)
-    overall_score = db.Column(db.Float)
+    gp_notes = db.Column(db.Text)  # store raw memo markdown
     status = db.Column(db.String(50))
     memo_pdf = db.Column(db.String(200))
     deck_file = db.Column(db.String(200))
@@ -70,11 +62,7 @@ INDUSTRY_CATEGORIES = [
 ]
 
 def extract_startup_info(deck_text, file_name=""):
-    # Prioritize first page text
-    first_slide_text = deck_text.split("\n")[:40]  # first ~40 lines
-    first_slide_text = " ".join(first_slide_text)
-
-    # Clean file name for fallback
+    first_slide_text = " ".join(deck_text.split("\n")[:40])
     clean_filename = os.path.splitext(os.path.basename(file_name))[0].replace("_", " ")
 
     prompt = f"""
@@ -87,7 +75,7 @@ def extract_startup_info(deck_text, file_name=""):
     {first_slide_text[:2000]}
 
     Rules:
-    - Respond ONLY in valid JSON (no commentary).
+    - Respond ONLY in valid JSON.
     - Keys: "name", "industry".
     """
 
@@ -104,7 +92,6 @@ def extract_startup_info(deck_text, file_name=""):
         industry = data.get("industry") if data.get("industry") in INDUSTRY_CATEGORIES else "Other"
         return name, industry
     except:
-        print("⚠️ Fallback, raw response:", content)
         return clean_filename, "Other"
 
 # --- Memo generation (section by section) ---
@@ -129,7 +116,7 @@ def generate_section(section_title, startup_name, industry, deck_text):
 
     Startup: {startup_name}
     Industry: {industry}
-    Pitch Deck Extract (truncated): {deck_text[:3000]}
+    Pitch Deck Extract (truncated): {deck_text[:2500]}
 
     Rules:
     - Use professional, data-driven tone.
@@ -141,6 +128,7 @@ def generate_section(section_title, startup_name, industry, deck_text):
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
+        max_tokens=800
     )
     return response.choices[0].message.content.strip()
 
@@ -151,7 +139,7 @@ def generate_full_memo(startup_name, industry, deck_text):
             section_text = generate_section(section, startup_name, industry, deck_text)
             memo_parts.append(f"## {section}\n\n{section_text}")
         except Exception as e:
-            memo_parts.append(f"## {section}\n\nError generating section: {e}")
+            memo_parts.append(f"## {section}\n\nError: {e}")
     return "\n\n".join(memo_parts)
 
 # --- Routes ---
@@ -174,12 +162,7 @@ def upload_pitchdeck():
         deck_text = extract_text(filepath)
         name, industry = extract_startup_info(deck_text, filename)
 
-        return render_template(
-            "confirm_startup.html",
-            filename=filename,
-            name=name,
-            industry=industry
-        )
+        return render_template("confirm_startup.html", filename=filename, name=name, industry=industry)
     return render_template("upload.html")
 
 @app.route("/confirm", methods=["POST"])
@@ -209,38 +192,40 @@ def generate_memo_for_startup(startup_id):
         return "No pitch deck uploaded", 400
 
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], startup.deck_file)
-    deck_text = extract_text(filepath)[:5000]  # truncate
+    deck_text = extract_text(filepath)[:4000]  # limit input size
 
     memo_text = generate_full_memo(startup.name, startup.industry, deck_text)
 
-    # Render Markdown with GitHub-flavored tables
+    # Save memo Markdown in DB
+    startup.gp_notes = memo_text
+    db.session.commit()
+
+    # Render for preview only
     md = markdown_it.MarkdownIt()
     html_memo = md.render(memo_text)
 
-    # Save as PDF
+    return render_template("result.html", memo_html=html_memo,
+                           download_link=url_for("download_memo", startup_id=startup.id))
+
+@app.route("/download/<int:startup_id>")
+def download_memo(startup_id):
+    startup = Startup.query.get_or_404(startup_id)
+    if not startup.gp_notes:
+        return "No memo available", 400
+
+    md = markdown_it.MarkdownIt()
+    html_memo = md.render(startup.gp_notes)
+
     output_filename = f"{startup.name}_memo.pdf"
     output_path = os.path.join(app.config["OUTPUT_FOLDER"], output_filename)
 
     html_content = render_template("pdf_template.html", memo_html=html_memo, startup=startup.name)
     HTML(string=html_content).write_pdf(output_path)
 
-    # Save memo + PDF path in DB
-    startup.memo_pdf = output_filename
-    startup.gp_notes = memo_text  # store raw markdown
-    db.session.commit()
-
-    return render_template(
-        "result.html",
-        memo_html=html_memo,
-        download_link=url_for("download_file", filename=output_filename)
-    )
-
-@app.route("/outputs/<filename>")
-def download_file(filename):
-    return send_from_directory(app.config["OUTPUT_FOLDER"], filename, as_attachment=True)
+    return send_from_directory(app.config["OUTPUT_FOLDER"], output_filename, as_attachment=True)
 
 # --- Run ---
 if __name__ == "__main__":
     with app.app_context():
-        db.create_all()  # only create tables if they don’t exist
+        db.create_all()
     app.run(debug=True)

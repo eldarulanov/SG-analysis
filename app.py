@@ -60,6 +60,7 @@ def extract_text(file_path):
             text += page.get_text("text")
     return text.strip()
 
+# --- Industry categories ---
 INDUSTRY_CATEGORIES = [
     "MarTech", "E-commerce", "AdTech", "Space & Defense Tech", "VR/AR Tech", "FinTech",
     "HealthTech", "EdTech", "CleanTech", "Mobility & Transportation", "Logistics & Supply Chain",
@@ -88,8 +89,6 @@ def extract_startup_info(deck_text, file_name=""):
     Rules:
     - Respond ONLY in valid JSON (no commentary).
     - Keys: "name", "industry".
-    - Example:
-      {{"name": "Acme Robotics", "industry": "AI/ML"}}
     """
 
     response = client.chat.completions.create(
@@ -108,76 +107,52 @@ def extract_startup_info(deck_text, file_name=""):
         print("⚠️ Fallback, raw response:", content)
         return clean_filename, "Other"
 
+# --- Memo generation (section by section) ---
+MEMO_SECTIONS = [
+    "Executive Summary",
+    "Industry Landscape",
+    "Pain Points",
+    "Competitive Landscape (Porter’s 5 Forces)",
+    "Comparator Table",
+    "White Space Opportunities",
+    "Benchmarks & Multiples",
+    "GTM Strategy",
+    "ROI Evidence",
+    "Regulatory Readiness",
+    "Exit Paths",
+    "Quantitative Scoring Matrix"
+]
 
-# --- OpenAI Call for Memo ---
-def generate_memo(startup_name, industry, deck_text):
+def generate_section(section_title, startup_name, industry, deck_text):
     prompt = f"""
-You are an expert venture capital analyst preparing an investment committee (IC) style memo.
+    You are a VC analyst. Write the section **{section_title}** of an investment memo.
 
-Startup: {startup_name}
-Industry: {industry}
-Pitch Deck Extract: {deck_text}
+    Startup: {startup_name}
+    Industry: {industry}
+    Pitch Deck Extract (truncated): {deck_text[:3000]}
 
-Instructions:
-1. Write a **structured, data-heavy investment memo** in professional style.
-2. Use **outside data sources** (market reports, recent funding rounds, competitor valuations, growth benchmarks) where possible. If no precise figure is available, use reasoned industry averages and state the source region/year clearly.
-3. Include **citations/sources** at the end of each major section.
-4. Avoid placeholders like "n/a" — leave cells blank if unknown.
+    Rules:
+    - Use professional, data-driven tone.
+    - Always format with Markdown (## headers, bullet points, tables where needed).
+    - If citing sources, add them at the end of the section under "Sources".
+    """
 
-Sections (in this order):
-- Executive Summary  
-  - Bullet points with ARR ($), MoM Growth (%), Gross Margin (%), Valuation ($), Funding to Date ($), and clear Recommendation.  
-  - 1–2 paragraphs summarizing opportunity, risks, and rationale.  
-
-- Industry Landscape  
-  - Market size, CAGR, drivers, regional trends, and tailwinds/headwinds.  
-  - At least 3 external sources referenced.  
-
-- Pain Points  
-  - List the core customer problems.  
-
-- Competitive Landscape (Porter’s 5 Forces)  
-  - Each force explained with references.  
-
-- Comparator Table  
-  - Include **as many relevant direct and indirect competitors as possible** (at least 5 rows if available).  
-  - Columns: Competitor | ARR ($) | Funding ($) | Valuation ($) | HQ | Year Founded | Notes (strategic position, differentiator).  
-
-- White Space Opportunities  
-  - 3–5 expansion paths or product vectors.  
-
-- Benchmarks & Multiples  
-  - Include revenue multiples, ARR multiples, recent exits in the industry, and any valuation comparables.  
-
-- GTM Strategy  
-  - Analyze startup’s motion, channels, partnerships, and bottlenecks.  
-
-- ROI Evidence  
-  - Quantify payback period, unit economics, margins, efficiency gains.  
-
-- Regulatory Readiness  
-  - Relevant licenses, compliance risks, or certifications required.  
-
-- Exit Paths  
-  - Acquisition targets, IPO potential, or strategic tuck-ins.  
-
-- Quantitative Scoring Matrix  
-  - A table with 0–10 scores for: Market, Product, Traction, Team, Competition, Scalability, Exit Potential.  
-  - Conclude with weighted overall score and short summary paragraph.  
-
-Formatting Rules:
-- Use **Markdown headings (##)** for sections.  
-- Use bullet points for lists.  
-- Tables must be clean and properly aligned.  
-- Keep writing professional, fact-based, and concise, but rich with data.  
-- Always end each section with a short line of **Sources** (e.g. Sources: Crunchbase, Pitchbook 2024, Statista).  
-"""
     response = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
     )
-    return response.choices[0].message.content
+    return response.choices[0].message.content.strip()
+
+def generate_full_memo(startup_name, industry, deck_text):
+    memo_parts = []
+    for section in MEMO_SECTIONS:
+        try:
+            section_text = generate_section(section, startup_name, industry, deck_text)
+            memo_parts.append(f"## {section}\n\n{section_text}")
+        except Exception as e:
+            memo_parts.append(f"## {section}\n\nError generating section: {e}")
+    return "\n\n".join(memo_parts)
 
 # --- Routes ---
 @app.route("/")
@@ -197,7 +172,7 @@ def upload_pitchdeck():
         file.save(filepath)
 
         deck_text = extract_text(filepath)
-        name, industry = extract_startup_info(deck_text)
+        name, industry = extract_startup_info(deck_text, filename)
 
         return render_template(
             "confirm_startup.html",
@@ -213,8 +188,8 @@ def confirm_startup():
     startup = Startup(
         name=request.form["name"],
         industry=request.form["industry"],
-        assigned_gp=request.form["assigned_gp"],
-        contact_person=request.form["contact_person"],
+        assigned_gp=request.form.get("assigned_gp", ""),
+        contact_person=request.form.get("contact_person", ""),
         status="Submitted",
         deck_file=filename
     )
@@ -234,8 +209,9 @@ def generate_memo_for_startup(startup_id):
         return "No pitch deck uploaded", 400
 
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], startup.deck_file)
-    deck_text = extract_text(filepath)
-    memo_text = generate_memo(startup.name, startup.industry, deck_text)
+    deck_text = extract_text(filepath)[:5000]  # truncate
+
+    memo_text = generate_full_memo(startup.name, startup.industry, deck_text)
 
     # Render Markdown with GitHub-flavored tables
     md = markdown_it.MarkdownIt()
@@ -259,7 +235,6 @@ def generate_memo_for_startup(startup_id):
         download_link=url_for("download_file", filename=output_filename)
     )
 
-
 @app.route("/outputs/<filename>")
 def download_file(filename):
     return send_from_directory(app.config["OUTPUT_FOLDER"], filename, as_attachment=True)
@@ -269,4 +244,3 @@ if __name__ == "__main__":
     with app.app_context():
         db.create_all()  # only create tables if they don’t exist
     app.run(debug=True)
-

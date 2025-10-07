@@ -79,10 +79,12 @@ def extract_startup_info(deck_text, file_name=""):
     """
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": prompt[:3500]}],  # hard truncate
+    temperature=0,
+    max_tokens=300  # short structured output only
     )
+
     content = response.choices[0].message.content.strip()
 
     try:
@@ -124,11 +126,12 @@ def generate_memo(startup_name, industry, deck_text):
     """
 
     response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
-        max_tokens=1800
+    model="gpt-4o-mini",
+    messages=[{"role": "user", "content": prompt[:3500]}],  # truncate just in case
+    temperature=0.3,
+    max_tokens=1200  # used to be 1800
     )
+
     return response.choices[0].message.content.strip()
 
 # --- Routes ---
@@ -181,7 +184,7 @@ def generate_memo_for_startup(startup_id):
         return "No pitch deck uploaded", 400
 
     filepath = os.path.join(app.config["UPLOAD_FOLDER"], startup.deck_file)
-    deck_text = extract_text(filepath)[:4000]  # truncate input
+    deck_text = extract_text(filepath)[:2000]  # truncate input
 
     memo_text = generate_memo(startup.name, startup.industry, deck_text)
 
@@ -202,16 +205,21 @@ def download_memo(startup_id):
     if not startup.gp_notes:
         return "No memo available", 400
 
-    md = markdown_it.MarkdownIt()
-    html_memo = md.render(startup.gp_notes)
+    try:
+        md = markdown_it.MarkdownIt()
+        html_memo = md.render(startup.gp_notes[:8000])  # prevent huge parse trees
 
-    output_filename = f"{startup.name}_memo.pdf"
-    output_path = os.path.join(app.config["OUTPUT_FOLDER"], output_filename)
+        output_filename = f"{startup.name}_memo.pdf"
+        output_path = os.path.join(app.config["OUTPUT_FOLDER"], output_filename)
 
-    html_content = render_template("pdf_template.html", memo_html=html_memo, startup=startup.name)
-    HTML(string=html_content).write_pdf(output_path)
+        html_content = render_template("pdf_template.html", memo_html=html_memo, startup=startup.name)
+        HTML(string=html_content).write_pdf(output_path)
 
-    return send_from_directory(app.config["OUTPUT_FOLDER"], output_filename, as_attachment=True)
+        return send_from_directory(app.config["OUTPUT_FOLDER"], output_filename, as_attachment=True)
+
+    except Exception as e:
+        print("⚠️ PDF generation error:", e)
+        return "PDF generation failed", 500
 
 # --- Run ---
 if __name__ == "__main__":
